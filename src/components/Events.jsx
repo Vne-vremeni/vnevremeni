@@ -60,7 +60,9 @@ export default function Events({ onBook }) {
   const [poster, setPoster] = useState(null);
 
   const upcoming = useMemo(
-    () => (eventsData.events || []).filter(item => isUpcoming(item.date)).sort((a, b) => a.date.localeCompare(b.date)),
+    // hidden — временно снятый с публикации вечер: данные остаются в файле
+    // нетронутыми, снять пометку можно в любой момент без набора заново.
+    () => (eventsData.events || []).filter(item => isUpcoming(item.date) && !item.hidden).sort((a, b) => a.date.localeCompare(b.date)),
     []
   );
 
