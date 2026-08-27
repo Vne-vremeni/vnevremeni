@@ -132,7 +132,7 @@ function kab_prochitat(string $imya, string $zapasnoj_put = ''): array
  * Запись идёт через временный файл: если связь оборвётся на середине, целым
  * останется прежний файл, а не половина нового.
  */
-function kab_sohranit(string $imya, array $dannye): void
+function kab_sohranit(string $imya, array $dannye, string $zapasnoj_put = ''): void
 {
     $papka = kab_papka_dannyh();
     if (!is_dir($papka) && !mkdir($papka, 0755, true) && !is_dir($papka)) {
@@ -142,14 +142,21 @@ function kab_sohranit(string $imya, array $dannye): void
     $file = $papka . '/' . $imya;
 
     // Копия предыдущей версии — до того, как тронули оригинал.
-    if (is_file($file)) {
+    //
+    // В самый первый раз своего файла на сервере ещё нет: кабинет только
+    // поставили, и данные читались из копии в сборке. Копировать тогда нужно
+    // именно её — иначе первое же сохранение затрёт исходную афишу, и вернуть
+    // её будет неоткуда. Проверено на своей шкуре при первой же проверке.
+    $chto_kopirovat = is_file($file) ? $file : $zapasnoj_put;
+
+    if ($chto_kopirovat !== '' && is_file($chto_kopirovat)) {
         $papka_kopij = $papka . '/kopii';
         if (!is_dir($papka_kopij)) {
             @mkdir($papka_kopij, 0755, true);
         }
         if (is_dir($papka_kopij)) {
             $metka = date('Y-m-d_H-i-s');
-            @copy($file, $papka_kopij . '/' . pathinfo($imya, PATHINFO_FILENAME) . '_' . $metka . '.json');
+            @copy($chto_kopirovat, $papka_kopij . '/' . pathinfo($imya, PATHINFO_FILENAME) . '_' . $metka . '.json');
             kab_podchistit_kopii($papka_kopij);
         }
     }

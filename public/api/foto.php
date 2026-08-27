@@ -28,6 +28,24 @@ const KAB_SHIRINA = 720;
 const KAB_VYSOTA  = 1280;
 /** Больше 25 МБ телефон не снимает даже в самом тяжёлом режиме. */
 const KAB_PREDEL_BAJT = 25 * 1024 * 1024;
+/**
+ * К какому весу стремимся. Ориентир — афиши, которые уже лежат на сайте
+ * (110–180 КБ). Проверка веса при сборке ругается на картинки тяжелее 300 КБ,
+ * так что запас есть, но набирать его без нужды незачем.
+ */
+const KAB_ZHELAEMYJ_VES = 180 * 1024;
+
+/**
+ * Настоящая цель по весу для конкретного файла.
+ *
+ * Если картинку уже сжали до нас и она весит меньше нашей нормы, целиться
+ * нужно в неё, а не в норму: иначе «обработка» сделает файл тяжелее, чем был.
+ * Именно это и случилось на проверке — снимок 150 КБ стал 174 КБ.
+ */
+function kab_cel_po_vesu(int $ves_ishodnika): int
+{
+    return $ves_ishodnika > 0 ? min(KAB_ZHELAEMYJ_VES, $ves_ishodnika) : KAB_ZHELAEMYJ_VES;
+}
 
 $fajl = $_FILES['foto'] ?? null;
 
@@ -81,7 +99,7 @@ $kuda = $papka . '/' . $imya;
  * боком и помечает «повернуть при показе». Не учтёшь эту пометку — афиша
  * ляжет на сайт набок. Если Imagick недоступен, работаем через GD.
  */
-function kab_szhat_imagick(string $otkuda, string $kuda): bool
+function kab_szhat_imagick(string $otkuda, string $kuda, int $cel): bool
 {
     if (!extension_loaded('imagick')) {
         return false;
@@ -94,19 +112,36 @@ function kab_szhat_imagick(string $otkuda, string $kuda): bool
         // Вписываем в рамку, сохраняя пропорции: афиша не должна быть растянута.
         $kartinka->thumbnailImage(KAB_SHIRINA, KAB_VYSOTA, true);
         $kartinka->setImageFormat('webp');
-        $kartinka->setImageCompressionQuality(88);
         // Данные съёмки (модель телефона, а иногда и место) на сайт не выкладываем.
         $kartinka->stripImage();
-        $ok = $kartinka->writeImage($kuda);
+
+        // Качество подбираем, а не берём наугад.
+        //
+        // Если фотографию уже кто-то сжал до нас, пересжатие с высоким
+        // качеством делает файл ТЯЖЕЛЕЕ исходного — проверка это поймала:
+        // снимок на 150 КБ превращался в 174 КБ. Поэтому спускаемся по
+        // качеству, пока не уложимся в норму, и останавливаемся на первом
+        // подошедшем.
+        foreach ([88, 82, 76, 70, 64] as $kachestvo) {
+            $kartinka->setImageCompressionQuality($kachestvo);
+            if (!$kartinka->writeImage($kuda)) {
+                return false;
+            }
+            clearstatcache(true, $kuda);
+            if (filesize($kuda) <= $cel) {
+                break;
+            }
+        }
+
         $kartinka->clear();
-        return (bool)$ok;
+        return is_file($kuda);
     } catch (Throwable $e) {
         error_log('kabinet foto imagick: ' . $e->getMessage());
         return false;
     }
 }
 
-function kab_szhat_gd(string $otkuda, string $kuda, int $tip): bool
+function kab_szhat_gd(string $otkuda, string $kuda, int $tip, int $cel): bool
 {
     if (!extension_loaded('gd')) {
         return false;
@@ -151,15 +186,28 @@ function kab_szhat_gd(string $otkuda, string $kuda, int $tip): bool
     imagesavealpha($itog, true);
     imagecopyresampled($itog, $ishodnik, 0, 0, 0, 0, $shirina, $vysota, $shirina_ish, $vysota_ish);
 
-    $ok = imagewebp($itog, $kuda, 88);
+    // Качество подбираем так же, как в основном пути: см. пояснение выше.
+    $ok = false;
+    foreach ([88, 82, 76, 70, 64] as $kachestvo) {
+        $ok = imagewebp($itog, $kuda, $kachestvo);
+        if (!$ok) {
+            break;
+        }
+        clearstatcache(true, $kuda);
+        if (filesize($kuda) <= $cel) {
+            break;
+        }
+    }
 
     imagedestroy($ishodnik);
     imagedestroy($itog);
     return (bool)$ok;
 }
 
-$poluchilos = kab_szhat_imagick($vremennyj, $kuda)
-    || kab_szhat_gd($vremennyj, $kuda, (int)$svedeniya[2]);
+$cel = kab_cel_po_vesu((int)($fajl['size'] ?? 0));
+
+$poluchilos = kab_szhat_imagick($vremennyj, $kuda, $cel)
+    || kab_szhat_gd($vremennyj, $kuda, (int)$svedeniya[2], $cel);
 
 if (!$poluchilos || !is_file($kuda)) {
     kab_v_zhurnal('kabinet-foto-ne-szhalos', ['tip' => (int)$svedeniya[2]]);

@@ -151,7 +151,7 @@ if (count($vechera) > 100) {
     kab_oshibka('Слишком много вечеров в списке.');
 }
 
-kab_sohranit(KAB_FAJL_AFISHI, ['events' => $vechera]);
+kab_sohranit(KAB_FAJL_AFISHI, ['events' => $vechera], kab_zapasnaya_afisha());
 kab_v_zhurnal('kabinet-afisha-sohranena', ['vecherov' => count($vechera)]);
 
 kab_otvet(['ok' => true, 'vecherov' => count($vechera)]);
