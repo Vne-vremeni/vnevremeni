@@ -54,9 +54,17 @@ jobs:
           ssh-keyscan -H "${{ secrets.BEGET_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Выложить на хостинг
+        # ВАЖНО про --delete: он стирает на сервере всё, чего нет в этой сборке.
+        # Поэтому папку с картинками, загруженными через кабинет, приходится
+        # исключать явно — иначе первая же выкладка сотрёт афиши, которые
+        # заказчица загрузила со своего телефона, и восстановить их будет неоткуда.
+        #
+        # Сами тексты (список вечеров) лежат ВЫШЕ корня сайта, туда rsync не
+        # добирается вовсе. Подробнее — в public/api/kabinet-lib.php.
         run: |
           rsync -rz --delete \
             --exclude 'cgi-bin' \
+            --exclude 'zagruzheno' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             dist/ "${{ secrets.BEGET_USER }}@${{ secrets.BEGET_HOST }}:${{ secrets.BEGET_PATH }}/"
 

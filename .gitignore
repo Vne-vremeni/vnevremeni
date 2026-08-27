@@ -25,3 +25,6 @@ dist-ssr
 
 # Локальные переменные сборки
 .env
+
+# Копия данных для кабинета — создаётся сама при сборке (scripts/kopiya-dannyh.mjs).
+public/dannye-iz-sborki

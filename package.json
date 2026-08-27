@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/proverka-razmerov.mjs",
+    "build": "node scripts/kopiya-dannyh.mjs && vite build && node scripts/proverka-razmerov.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

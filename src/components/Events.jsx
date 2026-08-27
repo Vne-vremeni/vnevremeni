@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
-import { Calendar, MapPin, Clock, Users, Info, X } from 'lucide-react';
-// Файл лежит объектом с ключом events, а не голым списком: этого требует
-// личный кабинет — он умеет править только именованные поля файла.
-import eventsData from '../data/events.json';
+import { Calendar, MapPin, Clock, Users, Info, X, Pencil, Plus, EyeOff } from 'lucide-react';
+import { useKabinet } from '../kabinet/KabinetContext';
+import RedaktorVechera, { PUSTOJ_VECHER } from '../kabinet/RedaktorVechera';
 
 const MONTHS = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -58,13 +57,36 @@ const buildEventSchema = (events) => JSON.stringify(
 
 export default function Events({ onBook }) {
   const [poster, setPoster] = useState(null);
+  const { vechera, rezhimPravki, sohranitVechera } = useKabinet();
+  // Какой вечер сейчас правим: объект вечера, PUSTOJ_VECHER для нового, либо null.
+  const [pravim, setPravim] = useState(null);
 
-  const upcoming = useMemo(
-    // hidden — временно снятый с публикации вечер: данные остаются в файле
-    // нетронутыми, снять пометку можно в любой момент без набора заново.
-    () => (eventsData.events || []).filter(item => isUpcoming(item.date) && !item.hidden).sort((a, b) => a.date.localeCompare(b.date)),
-    []
-  );
+  const upcoming = useMemo(() => {
+    const spisok = vechera || [];
+    // hidden — временно снятый с публикации вечер: данные остаются нетронутыми,
+    // снять пометку можно в любой момент без набора заново.
+    //
+    // В режиме правки показываем всё, включая скрытые и уже прошедшие: иначе
+    // снятый с сайта вечер было бы не вернуть — до него просто не добраться.
+    const otobrannye = rezhimPravki
+      ? spisok
+      : spisok.filter(item => isUpcoming(item.date) && !item.hidden);
+    return [...otobrannye].sort((a, b) => a.date.localeCompare(b.date));
+  }, [vechera, rezhimPravki]);
+
+  // Сохранение одного вечера: он либо заменяет прежний с тем же именем,
+  // либо добавляется в конец списка.
+  const sohranitVecher = async (vecher) => {
+    const spisok = [...(vechera || [])];
+    const nomer = spisok.findIndex(v => v.id && v.id === vecher.id);
+    if (nomer >= 0) spisok[nomer] = vecher;
+    else spisok.push(vecher);
+    await sohranitVechera(spisok);
+  };
+
+  const udalitVecher = async (id) => {
+    await sohranitVechera((vechera || []).filter(v => v.id !== id));
+  };
 
   useEffect(() => {
     if (!poster) return;
@@ -88,6 +110,22 @@ export default function Events({ onBook }) {
           </p>
         </div>
 
+        {rezhimPravki && (
+          <div className="mb-8 flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPravim({ ...PUSTOJ_VECHER })}
+              className="btn-primary text-sm px-5 py-2.5 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Добавить вечер
+            </button>
+            <p className="text-poet-muted text-xs leading-relaxed max-w-md">
+              Сейчас показаны все вечера, включая скрытые и прошедшие. Гости видят
+              только те, что впереди и не скрыты.
+            </p>
+          </div>
+        )}
+
         {upcoming.length === 0 ? (
           <div className="glass-card p-10 text-center max-w-2xl">
             <p className="text-poet-light/80 text-lg mb-2">Афиша на новые вечера готовится.</p>
@@ -104,26 +142,57 @@ export default function Events({ onBook }) {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-80px' }}
                 transition={{ duration: 0.5, delay: Math.min(index, 2) * 0.1 }}
-                className="glass-card overflow-hidden flex flex-col md:flex-row"
+                className={`glass-card overflow-hidden flex flex-col md:flex-row relative ${
+                  rezhimPravki && (event.hidden || !isUpcoming(event.date)) ? 'opacity-60' : ''
+                }`}
               >
-                <div className="md:w-[38%] lg:w-[32%] shrink-0 bg-black/40 flex items-center justify-center p-4 sm:p-6">
-                  <button
-                    type="button"
-                    onClick={() => setPoster(event)}
-                    className="group relative rounded-lg overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-poet-accent"
-                    title="Открыть афишу крупнее"
-                  >
-                    <img
-                      src={event.poster}
-                      alt={event.posterAlt}
-                      loading="lazy"
-                      className="max-h-[420px] w-auto object-contain transition-transform duration-500 group-hover:scale-[1.02]"
-                    />
-                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent text-white/90 text-xs py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      Открыть афишу крупнее
-                    </span>
-                  </button>
-                </div>
+                {/* Карандаш правки. Поверх карточки, всегда на виду — искать
+                    его по наведению мышью на телефоне невозможно. */}
+                {rezhimPravki && (
+                  <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+                    {event.hidden && (
+                      <span className="flex items-center gap-1 bg-poet-dark/90 border border-white/15 rounded px-2 py-1 text-xs text-poet-muted">
+                        <EyeOff className="w-3 h-3" /> скрыт
+                      </span>
+                    )}
+                    {!event.hidden && !isUpcoming(event.date) && (
+                      <span className="bg-poet-dark/90 border border-white/15 rounded px-2 py-1 text-xs text-poet-muted">
+                        прошёл
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPravim(event)}
+                      aria-label={`Править вечер «${event.title}»`}
+                      className="flex items-center gap-1.5 bg-poet-accent text-poet-dark rounded px-3 py-1.5 text-xs font-medium hover:bg-poet-accent/85 transition-colors shadow-lg"
+                    >
+                      <Pencil className="w-3.5 h-3.5" /> Править
+                    </button>
+                  </div>
+                )}
+
+                {/* Вечер без афиши — обычное дело: дату объявили, картинку ещё
+                    рисуют. Пустое место здесь лучше, чем сломанная картинка. */}
+                {event.poster && (
+                  <div className="md:w-[38%] lg:w-[32%] shrink-0 bg-black/40 flex items-center justify-center p-4 sm:p-6">
+                    <button
+                      type="button"
+                      onClick={() => setPoster(event)}
+                      className="group relative rounded-lg overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-poet-accent"
+                      title="Открыть афишу крупнее"
+                    >
+                      <img
+                        src={event.poster}
+                        alt={event.posterAlt}
+                        loading="lazy"
+                        className="max-h-[420px] w-auto object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+                      />
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent text-white/90 text-xs py-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Открыть афишу крупнее
+                      </span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="p-6 sm:p-8 flex flex-col flex-grow">
                   <h3 className="text-2xl lg:text-3xl font-serif font-bold text-white mb-1">{event.title}</h3>
@@ -222,6 +291,15 @@ export default function Events({ onBook }) {
           </m.div>
         )}
       </AnimatePresence>
+
+      {pravim && (
+        <RedaktorVechera
+          vecher={pravim}
+          onSohranit={sohranitVecher}
+          onUdalit={udalitVecher}
+          onClose={() => setPravim(null)}
+        />
+      )}
     </section>
   );
 }
