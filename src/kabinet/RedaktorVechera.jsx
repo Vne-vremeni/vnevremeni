@@ -137,12 +137,15 @@ export default function RedaktorVechera({ vecher, onSohranit, onUdalit, onClose 
 
   return (
     <div
-      className="fixed inset-0 z-[200] bg-black/90 flex items-start sm:items-center justify-center p-0 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[200] bg-black/90 flex justify-center p-0 sm:p-4 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-label={novyj ? 'Новый вечер' : 'Правка вечера'}
     >
-      <div className="glass-card w-full max-w-2xl my-0 sm:my-8 relative">
+      {/* my-auto, а не центрирование рамкой: длинное окно при центрировании
+          уезжает верхом за край экрана, и до кнопки «Сохранить» не докрутить.
+          overflow-visible — иначе шапка с кнопками не держится наверху. */}
+      <div className="glass-card !overflow-visible w-full max-w-2xl my-0 sm:my-auto h-fit relative">
 
         {/* Шапка окна закреплена: на телефоне список полей длинный, и кнопки
             «Сохранить»/«Закрыть» не должны уезжать за край экрана. */}

@@ -157,7 +157,7 @@ function kab_sohranit(string $imya, array $dannye, string $zapasnoj_put = ''): v
         if (is_dir($papka_kopij)) {
             $metka = date('Y-m-d_H-i-s');
             @copy($chto_kopirovat, $papka_kopij . '/' . pathinfo($imya, PATHINFO_FILENAME) . '_' . $metka . '.json');
-            kab_podchistit_kopii($papka_kopij);
+            kab_podchistit_kopii($papka_kopij, pathinfo($imya, PATHINFO_FILENAME));
         }
     }
 
@@ -176,10 +176,13 @@ function kab_sohranit(string $imya, array $dannye, string $zapasnoj_put = ''): v
 /**
  * Оставить последние 60 копий. Без этого папка растёт бесконечно и однажды
  * упрётся в место на хостинге — а заметят это в самый неподходящий момент.
+ *
+ * Считаем отдельно по каждому файлу данных: иначе частые правки афиши
+ * вытеснили бы из папки все копии резидентов.
  */
-function kab_podchistit_kopii(string $papka, int $skolko_ostavit = 60): void
+function kab_podchistit_kopii(string $papka, string $prefiks, int $skolko_ostavit = 60): void
 {
-    $spisok = glob($papka . '/*.json');
+    $spisok = glob($papka . '/' . $prefiks . '_*.json');
     if (!is_array($spisok) || count($spisok) <= $skolko_ostavit) {
         return;
     }

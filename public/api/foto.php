@@ -82,14 +82,20 @@ if (!in_array($svedeniya[2], $dopustimye, true)) {
     kab_oshibka('Такой вид картинок не поддерживается. Подойдёт JPG, PNG или WebP.');
 }
 
-$papka = kab_papka_zagruzok() . '/events';
+// Что загружаем: афишу вечера или портрет резидента. Кадр у них одинаковый —
+// вертикальный, 720×1280, — поэтому отличаются только папка и имя файла.
+$dlya_rezidenta = ($_POST['vid'] ?? '') === 'rezident';
+$podpapka = $dlya_rezidenta ? 'rezidenty' : 'events';
+$prefiks  = $dlya_rezidenta ? 'rezident' : 'afisha';
+
+$papka = kab_papka_zagruzok() . '/' . $podpapka;
 if (!is_dir($papka) && !mkdir($papka, 0755, true) && !is_dir($papka)) {
     kab_oshibka('Не удалось создать папку для картинок на сервере.', 500);
 }
 
 // Имя с меткой времени: прежняя картинка остаётся на месте. Если новая
 // не понравится, вернуть старую можно, не набирая ничего заново.
-$imya = 'afisha-' . date('Y-m-d_H-i-s') . '-' . bin2hex(random_bytes(3)) . '.webp';
+$imya = $prefiks . '-' . date('Y-m-d_H-i-s') . '-' . bin2hex(random_bytes(3)) . '.webp';
 $kuda = $papka . '/' . $imya;
 
 /**
@@ -222,7 +228,7 @@ kab_v_zhurnal('kabinet-foto-zagruzheno', [
 
 kab_otvet([
     'ok'       => true,
-    'put'      => './zagruzheno/events/' . $imya,
+    'put'      => './zagruzheno/' . $podpapka . '/' . $imya,
     'bylo_kb'  => (int)round(($fajl['size'] ?? 0) / 1024),
     'stalo_kb' => (int)round($stalo / 1024),
 ]);

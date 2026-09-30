@@ -92,14 +92,39 @@ export async function sohranitAfishu(vechera) {
 }
 
 /**
- * Загрузить картинку афиши.
+ * Забрать резидентов с сервера. Как и с афишей: при любой неудаче — null,
+ * и сайт показывает резидентов из своей сборки.
+ */
+export async function zabratRezidentov() {
+  try {
+    const otvet = await fetch(`${API}/rezidenty.php`, { credentials: 'same-origin' });
+    if (!otvet.ok) return null;
+    const dannye = await otvet.json();
+    return Array.isArray(dannye?.residents) ? dannye.residents : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Сохранить резидентов целиком. */
+export async function sohranitRezidentovNaServere(rezidenty) {
+  return poslat(`${API}/rezidenty.php`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ residents: rezidenty }),
+  });
+}
+
+/**
+ * Загрузить картинку афиши или портрет резидента (vid = 'rezident').
  *
  * Сжатием занимается сервер: телефон отдаёт снимок на несколько мегабайт, а на
  * сайт должна лечь лёгкая картинка. Здесь мы только отправляем файл и получаем
  * обратно путь к готовой.
  */
-export async function zagruzitFoto(fajl) {
+export async function zagruzitFoto(fajl, vid = 'afisha') {
   const telo = new FormData();
   telo.append('foto', fajl);
+  telo.append('vid', vid);
   return poslat(`${API}/foto.php`, { method: 'POST', body: telo });
 }
