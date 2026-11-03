@@ -1,0 +1,58 @@
+# Запасная копия сайта на GitHub Pages: https://vne-vremeni.github.io/vnevremeni/
+#
+# Зачем. 2 ноября 2026 Beget лёг после кибератаки, и сайт клуба пропал вместе
+# с ним. Эта копия собирается из того же кода при каждом изменении в main и
+# живёт независимо от хостинга.
+#
+# Чего здесь нет: кабинета и автоматической отправки заявок — они работают на
+# PHP, а GitHub Pages умеет только отдавать готовые страницы. Гость, у которого
+# заявка не ушла, видит запасную кнопку «написать в Telegram». Афиша и
+# резиденты показываются из копии в сборке (src/data/*.json).
+#
+# Важно: у части российских провайдеров github.io открывается нестабильно.
+# Это запасной вариант на время аварии, а не основное место сайта.
+
+name: Запасная копия на GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.vykladka.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Убрать серверные файлы
+        # PHP на GitHub не исполняется и отдавался бы как текст — ни к чему.
+        run: find dist -name '*.php' -delete
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: vykladka
+        uses: actions/deploy-pages@v4
