@@ -171,26 +171,52 @@ function sendToTelegram(string $text, array $config): bool
         'disable_web_page_preview' => true,
     ], JSON_UNESCAPED_UNICODE);
 
-    $curl = curl_init($url);
-    curl_setopt_array($curl, [
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-    ]);
-    $body = curl_exec($curl);
-    $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_error($curl);
-    curl_close($curl);
+    // Почему несколько попыток разными путями (замер с хостинга reg.ru, 18.11.2026):
+    // DNS отдаёт для api.telegram.org адрес 149.154.166.110, а он из российской сети
+    // не открывается вовсе (0 из 15). Через IPv6 проходит ~9 из 10, через другой
+    // адрес Telegram 149.154.167.220 - ~7 из 10. Пробуем по очереди - так заявка
+    // доходит почти всегда. На обычном хостинге первая же попытка срабатывает.
+    $popytki = [
+        [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V6],
+        [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4, CURLOPT_RESOLVE => ['api.telegram.org:443:149.154.167.220']],
+        [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V6],
+        [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4, CURLOPT_RESOLVE => ['api.telegram.org:443:149.154.167.220']],
+        [], // обычный путь, как было
+    ];
 
-    if ($status !== 200) {
-        // Подробности в лог хостинга, наружу — только факт неудачи.
-        error_log('telegram-failed ' . $status . ' ' . ($error !== '' ? $error : (string) $body));
-        return false;
+    $oshibki = [];
+    foreach ($popytki as $nomer => $put) {
+        $curl = curl_init($url);
+        curl_setopt_array($curl, $put + [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 4,
+            CURLOPT_TIMEOUT        => 8,
+        ]);
+        $body = curl_exec($curl);
+        $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+
+        if ($status === 200) {
+            if ($nomer > 0) {
+                error_log('telegram: доставлено с попытки ' . ($nomer + 1));
+            }
+            return true;
+        }
+        // Telegram ответил, но отказал (неверный токен, чат) - повторять бесполезно.
+        if ($status >= 400 && $status < 500) {
+            $oshibki[] = $status . ' ' . (string) $body;
+            break;
+        }
+        $oshibki[] = $status . ' ' . $error;
     }
 
-    return true;
+    // Подробности в лог хостинга, наружу — только факт неудачи.
+    error_log('telegram-failed ' . implode(' | ', $oshibki));
+    return false;
 }
 
 date_default_timezone_set('Europe/Moscow');
