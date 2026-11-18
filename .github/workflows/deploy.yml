@@ -5,13 +5,15 @@
 # От нажатия до появления на сайте — около двух минут.
 #
 # Почему сборка здесь, а не на хостинге: сайт написан на React и его нужно собирать,
-# а на виртуальном хостинге Beget нет Node. Здесь он есть.
+# а на виртуальном хостинге нет Node. Здесь он есть.
 #
+# С 18.11.2026 сайт живёт на reg.ru (Beget упал и не поднялся).
 # Доступы лежат в секретах репозитория, в коде их нет:
-#   BEGET_SSH_KEY — закрытый ключ для входа на хостинг
-#   BEGET_HOST    — адрес сервера
-#   BEGET_USER    — логин
-#   BEGET_PATH    — куда класть файлы
+#   REGRU_SSH_KEY     — закрытый ключ для входа на хостинг (бессрочный)
+#   REGRU_HOST        — адрес сервера
+#   REGRU_USER        — логин
+#   REGRU_PATH        — куда класть файлы
+#   REGRU_KNOWN_HOSTS — отпечаток сервера: робот проверяет, что пришёл на настоящий
 
 name: Сборка и выкладка сайта
 
@@ -55,9 +57,9 @@ jobs:
       - name: Подготовить ключ к хостингу
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.BEGET_SSH_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.REGRU_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.BEGET_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s\n' "${{ secrets.REGRU_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
 
       - name: Выложить на хостинг
         # ВАЖНО про --delete: он стирает на сервере всё, чего нет в этой сборке.
@@ -65,14 +67,17 @@ jobs:
         # исключать явно — иначе первая же выкладка сотрёт афиши, которые
         # заказчица загрузила со своего телефона, и восстановить их будет неоткуда.
         #
+        # .well-known — служебная папка, через неё продлевается сертификат https.
+        #
         # Сами тексты (список вечеров) лежат ВЫШЕ корня сайта, туда rsync не
         # добирается вовсе. Подробнее — в public/api/kabinet-lib.php.
         run: |
           rsync -rz --delete \
             --exclude 'cgi-bin' \
             --exclude 'zagruzheno' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            dist/ "${{ secrets.BEGET_USER }}@${{ secrets.BEGET_HOST }}:${{ secrets.BEGET_PATH }}/"
+            --exclude '.well-known' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            dist/ "${{ secrets.REGRU_USER }}@${{ secrets.REGRU_HOST }}:${{ secrets.REGRU_PATH }}/"
 
       - name: Проверить, что сайт отвечает
         run: |
