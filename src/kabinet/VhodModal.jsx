@@ -6,12 +6,13 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useKabinet } from './KabinetContext';
 
 export default function VhodModal({ onClose }) {
   const { vojti } = useKabinet();
   const [parol, setParol] = useState('');
+  const [viden, setViden] = useState(false);
   const [zanyato, setZanyato] = useState(false);
   const [oshibka, setOshibka] = useState('');
   const poleRef = useRef(null);
@@ -73,15 +74,30 @@ export default function VhodModal({ onClose }) {
           <label htmlFor="kabinet-parol" className="block text-xs uppercase tracking-wider text-poet-muted mb-2">
             Пароль
           </label>
-          <input
-            id="kabinet-parol"
-            ref={poleRef}
-            type="password"
-            value={parol}
-            onChange={(e) => setParol(e.target.value)}
-            autoComplete="current-password"
-            className="w-full bg-black/40 border border-white/10 focus:border-poet-accent rounded px-4 py-3 text-white outline-none transition-colors mb-4"
-          />
+          {/* Показанный пароль — обычное текстовое поле, и айфон норовит сделать первую
+              букву заглавной или «исправить» слово. Поэтому подсказки выключены. */}
+          <div className="relative mb-4">
+            <input
+              id="kabinet-parol"
+              ref={poleRef}
+              type={viden ? 'text' : 'password'}
+              value={parol}
+              onChange={(e) => setParol(e.target.value)}
+              autoComplete="current-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full bg-black/40 border border-white/10 focus:border-poet-accent rounded pl-4 pr-12 py-3 text-white outline-none transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setViden((v) => !v)}
+              aria-label={viden ? 'Скрыть пароль' : 'Показать пароль'}
+              className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+            >
+              {viden ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
 
           {oshibka && (
             <p role="alert" className="text-red-400 text-sm mb-4 leading-relaxed">{oshibka}</p>
